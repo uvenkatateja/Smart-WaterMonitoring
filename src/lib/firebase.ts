@@ -1,4 +1,3 @@
-
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
 import { getAuth } from "firebase/auth";
@@ -6,14 +5,14 @@ import { getAnalytics } from "firebase/analytics";
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyBSaBbwbIXKxfJct7a6VzjmmV0hjrPuF90",
-  authDomain: "iotronz.firebaseapp.com",
-  databaseURL: "https://iotronz-default-rtdb.firebaseio.com",
-  projectId: "iotronz",
-  storageBucket: "iotronz.firebasestorage.app",
-  messagingSenderId: "1071295393272",
-  appId: "1:1071295393272:web:f12433dcd90d9e9d65ba0d",
-  measurementId: "G-Y7BNV4SLXR"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
