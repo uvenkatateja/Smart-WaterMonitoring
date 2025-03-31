@@ -34,6 +34,7 @@ const Dashboard = () => {
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
   const [timeRange, setTimeRange] = useState<TimeRange>('day');
   const [showDetails, setShowDetails] = useState<boolean>(false);
+  const [showRealData, setShowRealData] = useState<boolean>(false);
   
   // Function to handle warnings based on water quality
   const getWarnings = () => {
@@ -62,7 +63,7 @@ const Dashboard = () => {
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
     
-    if (autoRefresh) {
+    if (autoRefresh && showRealData) {
       interval = setInterval(() => {
         refetch();
         setLastUpdated(new Date());
@@ -72,16 +73,39 @@ const Dashboard = () => {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [autoRefresh, refetch]);
+  }, [autoRefresh, refetch, showRealData]);
   
   // Manual refresh handler
   const handleRefresh = () => {
-    refetch();
-    setLastUpdated(new Date());
-    toast({
-      title: "Data refreshed",
-      description: "Water quality data has been updated",
-    });
+    if (showRealData) {
+      refetch();
+      setLastUpdated(new Date());
+      toast({
+        title: "Data refreshed",
+        description: "Water quality data has been updated",
+      });
+    }
+  };
+
+  // Start/Stop data display handler
+  const toggleDataDisplay = () => {
+    if (!showRealData) {
+      // Start showing real data
+      setShowRealData(true);
+      refetch();
+      setLastUpdated(new Date());
+      toast({
+        title: "Monitoring Started",
+        description: "Real-time water quality data is now being displayed",
+      });
+    } else {
+      // Stop showing real data
+      setShowRealData(false);
+      toast({
+        title: "Monitoring Stopped",
+        description: "Water quality data display has been paused",
+      });
+    }
   };
 
   // Notify user if there's a data loading error
@@ -256,8 +280,18 @@ const Dashboard = () => {
     return suggestions;
   };
 
-  const warnings = getWarnings();
-  const improvementSuggestions = getImprovementSuggestions();
+  // Create placeholder zero data object when not showing real data
+  const zeroData = {
+    pH: 0,
+    TDS: 0,
+    Temperature: 0
+  };
+
+  // Use either the real data or zero data based on showRealData state
+  const displayData = showRealData ? data : zeroData;
+  
+  const warnings = showRealData ? getWarnings() : [];
+  const improvementSuggestions = showRealData ? getImprovementSuggestions() : [];
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -277,6 +311,16 @@ const Dashboard = () => {
           <div className="flex flex-wrap items-center gap-2">
             <LanguageSelector variant="default" />
             
+            {/* Start/Stop Button */}
+            <Button 
+              variant={showRealData ? "destructive" : "default"}
+              size="sm"
+              onClick={toggleDataDisplay}
+              className="flex items-center gap-1"
+            >
+              {showRealData ? t('stop') : t('start')} {t('monitoring')}
+            </Button>
+            
             <div className="text-sm text-muted-foreground">
               {t('lastUpdated')}: {lastUpdated.toLocaleTimeString()}
             </div>
@@ -285,7 +329,7 @@ const Dashboard = () => {
                 variant="outline" 
                 size="sm" 
                 onClick={handleRefresh}
-                disabled={loading}
+                disabled={loading || !showRealData}
                 className="flex items-center gap-1"
               >
                 <RefreshCw className="h-4 w-4" />
@@ -295,9 +339,10 @@ const Dashboard = () => {
                 variant="ghost"
                 size="sm"
                 onClick={() => setAutoRefresh(!autoRefresh)}
-                className={autoRefresh ? "text-green-600" : "text-muted-foreground"}
+                disabled={!showRealData}
+                className={autoRefresh && showRealData ? "text-green-600" : "text-muted-foreground"}
               >
-                {t('auto')}: {autoRefresh ? "ON" : "OFF"}
+                {t('auto')}: {autoRefresh && showRealData ? "ON" : "OFF"}
               </Button>
               
               {/* CSV Download Dropdown */}
@@ -306,7 +351,7 @@ const Dashboard = () => {
                   <Button 
                     variant="outline" 
                     size="sm"
-                    disabled={loading || !data}
+                    disabled={loading || !showRealData}
                     className="flex items-center gap-1"
                   >
                     <Download className="h-4 w-4" />
@@ -356,7 +401,7 @@ const Dashboard = () => {
         
         <div className="grid grid-cols-1 gap-6">
           {/* Water Quality Widget */}
-          <WaterQualityWidget />
+          <WaterQualityWidget showRealData={showRealData} />
           
           {/* Time Range Tabs and Charts Section */}
           <div>
@@ -388,36 +433,36 @@ const Dashboard = () => {
                           <p>Failed to load chart data. Please try again later.</p>
                         </CardContent>
                       </Card>
-                    ) : data ? (
+                    ) : displayData ? (
                       <>
                         <WaterQualityChart
                           title={`${t('pH')} History`}
                           parameter="pH"
-                          currentValue={data.pH}
+                          currentValue={displayData.pH}
                           unit=""
                           color="#0ea5e9"
                           timeRange={range as TimeRange}
-                          data={historicalData[range as TimeRange]}
+                          data={showRealData ? historicalData[range as TimeRange] : []}
                         />
                         
                         <WaterQualityChart
                           title={`${t('TDS')} History`}
                           parameter="TDS"
-                          currentValue={data.TDS}
+                          currentValue={displayData.TDS}
                           unit=" ppm"
                           color="#10b981"
                           timeRange={range as TimeRange}
-                          data={historicalData[range as TimeRange]}
+                          data={showRealData ? historicalData[range as TimeRange] : []}
                         />
                         
                         <WaterQualityChart
                           title={`${t('Temperature')} History`}
                           parameter="Temperature"
-                          currentValue={data.Temperature}
+                          currentValue={displayData.Temperature}
                           unit="°C"
                           color="#f59e0b"
                           timeRange={range as TimeRange}
-                          data={historicalData[range as TimeRange]}
+                          data={showRealData ? historicalData[range as TimeRange] : []}
                         />
                       </>
                     ) : null}
@@ -442,7 +487,7 @@ const Dashboard = () => {
                     {t('recommendations')}
                   </CardTitle>
                   <CardDescription className="animate-fade-in" style={{animationDelay: '200ms'}}>
-                    {t('basedOnCurrentData')}
+                    {showRealData ? t('basedOnCurrentData') : t('startMonitoringToSeeRecommendations')}
                   </CardDescription>
                 </div>
                 <Button 
@@ -450,6 +495,7 @@ const Dashboard = () => {
                   size="sm" 
                   onClick={() => setShowDetails(!showDetails)}
                   className="text-sm"
+                  disabled={!showRealData}
                 >
                   {showDetails ? t('showLess') : t('showDetails')}
                 </Button>
@@ -478,7 +524,18 @@ const Dashboard = () => {
                     Try Again
                   </Button>
                 </div>
-              ) : data ? (
+              ) : !showRealData ? (
+                <div className="flex flex-col items-center justify-center p-10 text-center">
+                  <Droplet className="h-16 w-16 text-blue-300 mb-4" />
+                  <p className="text-muted-foreground mb-4">{t('clickStartToDisplayWaterQualityData')}</p>
+                  <Button 
+                    onClick={toggleDataDisplay}
+                    className="mt-2"
+                  >
+                    {t('start')} {t('monitoring')}
+                  </Button>
+                </div>
+              ) : displayData ? (
                 <>
                   {/* Usage Indicators - Show when detailed view is off */}
                   {!showDetails && (
@@ -488,14 +545,14 @@ const Dashboard = () => {
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
                             <div className="relative h-5 w-5">
-                              <Droplet className={`absolute inset-0 ${getUsageLevel('pH', data.pH) === 'high' ? 'text-red-500' : getUsageLevel('pH', data.pH) === 'moderate' ? 'text-amber-500' : 'text-green-500'}`} />
+                              <Droplet className={`absolute inset-0 ${getUsageLevel('pH', displayData.pH) === 'high' ? 'text-red-500' : getUsageLevel('pH', displayData.pH) === 'moderate' ? 'text-amber-500' : 'text-green-500'}`} />
                             </div>
-                            <span className={`font-medium ${getUsageLevel('pH', data.pH) === 'high' ? 'text-red-700' : getUsageLevel('pH', data.pH) === 'moderate' ? 'text-amber-700' : 'text-green-700'}`}>
+                            <span className={`font-medium ${getUsageLevel('pH', displayData.pH) === 'high' ? 'text-red-700' : getUsageLevel('pH', displayData.pH) === 'moderate' ? 'text-amber-700' : 'text-green-700'}`}>
                               {t('pH')} Level
                             </span>
                           </div>
-                          <span className={`text-sm font-medium ${getUsageLevel('pH', data.pH) === 'high' ? 'text-red-700' : getUsageLevel('pH', data.pH) === 'moderate' ? 'text-amber-700' : 'text-green-700'}`}>
-                            {data.pH} / 14 ({Math.round((data.pH / 14) * 100)}%)
+                          <span className={`text-sm font-medium ${getUsageLevel('pH', displayData.pH) === 'high' ? 'text-red-700' : getUsageLevel('pH', displayData.pH) === 'moderate' ? 'text-amber-700' : 'text-green-700'}`}>
+                            {displayData.pH} / 14 ({Math.round((displayData.pH / 14) * 100)}%)
                           </span>
                         </div>
                         
@@ -514,15 +571,15 @@ const Dashboard = () => {
                           {/* pH indicator with animation */}
                           <div 
                             className="absolute bottom-0 top-0 left-0 flex items-center justify-center"
-                            style={{ left: `${(data.pH / 14) * 100}%`, transform: 'translateX(-50%)' }}
+                            style={{ left: `${(displayData.pH / 14) * 100}%`, transform: 'translateX(-50%)' }}
                           >
                             <div className="h-12 w-12 rounded-full overflow-hidden relative">
                               <WaterAnimation 
                                 type="ripple" 
                                 color={
-                                  getUsageLevel('pH', data.pH) === 'high' 
+                                  getUsageLevel('pH', displayData.pH) === 'high' 
                                     ? '#ef4444' 
-                                    : getUsageLevel('pH', data.pH) === 'moderate' 
+                                    : getUsageLevel('pH', displayData.pH) === 'moderate' 
                                       ? '#f59e0b' 
                                       : '#22c55e'
                                 } 
@@ -530,7 +587,7 @@ const Dashboard = () => {
                                 width="100%"
                               />
                               <div className="absolute inset-0 flex items-center justify-center text-white font-bold">
-                                {data.pH}
+                                {displayData.pH}
                               </div>
                             </div>
                           </div>
@@ -549,7 +606,7 @@ const Dashboard = () => {
                         </div>
                         
                         <p className="mt-2 text-sm text-muted-foreground animate-slide-in" style={{animationDelay: '0.2s'}}>
-                          {getRecommendation('pH', data.pH)}
+                          {getRecommendation('pH', displayData.pH)}
                         </p>
                       </div>
                       
@@ -558,14 +615,14 @@ const Dashboard = () => {
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
                             <div className="relative h-5 w-5">
-                              <Filter className={`absolute inset-0 ${getUsageLevel('TDS', data.TDS) === 'high' ? 'text-red-500' : getUsageLevel('TDS', data.TDS) === 'moderate' ? 'text-amber-500' : 'text-green-500'}`} />
+                              <Filter className={`absolute inset-0 ${getUsageLevel('TDS', displayData.TDS) === 'high' ? 'text-red-500' : getUsageLevel('TDS', displayData.TDS) === 'moderate' ? 'text-amber-500' : 'text-green-500'}`} />
                             </div>
-                            <span className={`font-medium ${getUsageLevel('TDS', data.TDS) === 'high' ? 'text-red-700' : getUsageLevel('TDS', data.TDS) === 'moderate' ? 'text-amber-700' : 'text-green-700'}`}>
+                            <span className={`font-medium ${getUsageLevel('TDS', displayData.TDS) === 'high' ? 'text-red-700' : getUsageLevel('TDS', displayData.TDS) === 'moderate' ? 'text-amber-700' : 'text-green-700'}`}>
                               {t('TDS')} Level
                             </span>
                           </div>
-                          <span className={`text-sm font-medium ${getUsageLevel('TDS', data.TDS) === 'high' ? 'text-red-700' : getUsageLevel('TDS', data.TDS) === 'moderate' ? 'text-amber-700' : 'text-green-700'}`}>
-                            {data.TDS} ppm
+                          <span className={`text-sm font-medium ${getUsageLevel('TDS', displayData.TDS) === 'high' ? 'text-red-700' : getUsageLevel('TDS', displayData.TDS) === 'moderate' ? 'text-amber-700' : 'text-green-700'}`}>
+                            {displayData.TDS} ppm
                           </span>
                         </div>
                         
@@ -573,14 +630,14 @@ const Dashboard = () => {
                           {/* TDS Water Fill Animation */}
                           <div 
                             className="absolute bottom-0 left-0 h-full rounded-l-md overflow-hidden"
-                            style={{ width: `${Math.min(100, (data.TDS / 1000) * 100)}%` }}
+                            style={{ width: `${Math.min(100, (displayData.TDS / 1000) * 100)}%` }}
                           >
                             <WaterAnimation 
                               type="wave" 
                               color={
-                                getUsageLevel('TDS', data.TDS) === 'high' 
+                                getUsageLevel('TDS', displayData.TDS) === 'high' 
                                   ? '#ef4444' 
-                                  : getUsageLevel('TDS', data.TDS) === 'moderate' 
+                                  : getUsageLevel('TDS', displayData.TDS) === 'moderate' 
                                     ? '#f59e0b' 
                                     : '#22c55e'
                               } 
@@ -603,7 +660,7 @@ const Dashboard = () => {
                         </div>
                         
                         <p className="mt-2 text-sm text-muted-foreground animate-slide-in" style={{animationDelay: '0.2s'}}>
-                          {getRecommendation('TDS', data.TDS)}
+                          {getRecommendation('TDS', displayData.TDS)}
                         </p>
                       </div>
                       
@@ -612,14 +669,14 @@ const Dashboard = () => {
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
                             <div className="relative h-5 w-5">
-                              <Thermometer className={`absolute inset-0 ${getUsageLevel('Temperature', data.Temperature) === 'high' ? 'text-red-500' : getUsageLevel('Temperature', data.Temperature) === 'moderate' ? 'text-amber-500' : 'text-green-500'}`} />
+                              <Thermometer className={`absolute inset-0 ${getUsageLevel('Temperature', displayData.Temperature) === 'high' ? 'text-red-500' : getUsageLevel('Temperature', displayData.Temperature) === 'moderate' ? 'text-amber-500' : 'text-green-500'}`} />
                             </div>
-                            <span className={`font-medium ${getUsageLevel('Temperature', data.Temperature) === 'high' ? 'text-red-700' : getUsageLevel('Temperature', data.Temperature) === 'moderate' ? 'text-amber-700' : 'text-green-700'}`}>
+                            <span className={`font-medium ${getUsageLevel('Temperature', displayData.Temperature) === 'high' ? 'text-red-700' : getUsageLevel('Temperature', displayData.Temperature) === 'moderate' ? 'text-amber-700' : 'text-green-700'}`}>
                               {t('Temperature')}
                             </span>
                           </div>
-                          <span className={`text-sm font-medium ${getUsageLevel('Temperature', data.Temperature) === 'high' ? 'text-red-700' : getUsageLevel('Temperature', data.Temperature) === 'moderate' ? 'text-amber-700' : 'text-green-700'}`}>
-                            {data.Temperature}°C
+                          <span className={`text-sm font-medium ${getUsageLevel('Temperature', displayData.Temperature) === 'high' ? 'text-red-700' : getUsageLevel('Temperature', displayData.Temperature) === 'moderate' ? 'text-amber-700' : 'text-green-700'}`}>
+                            {displayData.Temperature}°C
                           </span>
                         </div>
                         
@@ -627,24 +684,24 @@ const Dashboard = () => {
                           {/* Temperature indicator with animation */}
                           <div 
                             className="absolute bottom-0 top-0 left-0 flex items-center justify-center"
-                            style={{ left: `${((data.Temperature - 0) / (40 - 0)) * 100}%`, transform: 'translateX(-50%)' }}
+                            style={{ left: `${((displayData.Temperature - 0) / (40 - 0)) * 100}%`, transform: 'translateX(-50%)' }}
                           >
                             <div className="h-12 w-12 rounded-full overflow-hidden relative">
                               <WaterAnimation 
-                                type={data.Temperature > 25 ? 'ripple' : 'wave'} 
+                                type={displayData.Temperature > 25 ? 'ripple' : 'wave'} 
                                 color={
-                                  getUsageLevel('Temperature', data.Temperature) === 'high' 
+                                  getUsageLevel('Temperature', displayData.Temperature) === 'high' 
                                     ? '#ef4444' 
-                                    : getUsageLevel('Temperature', data.Temperature) === 'moderate' 
+                                    : getUsageLevel('Temperature', displayData.Temperature) === 'moderate' 
                                       ? '#f59e0b' 
                                       : '#22c55e'
                                 } 
                                 height="100%"
                                 width="100%"
-                                duration={data.Temperature > 25 ? 1.5 : 3}
+                                duration={displayData.Temperature > 25 ? 1.5 : 3}
                               />
                               <div className="absolute inset-0 flex items-center justify-center text-white font-bold">
-                                {data.Temperature}°
+                                {displayData.Temperature}°
                               </div>
                             </div>
                           </div>
@@ -662,7 +719,7 @@ const Dashboard = () => {
                         </div>
                         
                         <p className="mt-2 text-sm text-muted-foreground animate-slide-in" style={{animationDelay: '0.2s'}}>
-                          {getRecommendation('Temperature', data.Temperature)}
+                          {getRecommendation('Temperature', displayData.Temperature)}
                         </p>
                       </div>
                     </div>
